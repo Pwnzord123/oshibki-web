@@ -349,7 +349,7 @@ export default async function handler(req) {
 
     if (path === "register" && req.method === "POST") {
       const body = await req.json();
-      const { uid: regUid, email: regEmail, firstName, lastName } = body;
+      const { uid: regUid, email: regEmail, firstName, middleName, lastName } = body;
       if (!regUid || !regEmail || !firstName || !lastName) {
         return json({ success: false, message: "Все поля обязательны" }, 400);
       }
@@ -358,9 +358,10 @@ export default async function handler(req) {
         return json({ success: false, message: "Пользователь уже зарегистрирован" }, 409);
       }
       const isSuperAdmin = regEmail.toLowerCase() === "barakilllubogo@gmail.com";
+      const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
       const now = new Date().toISOString();
       await appendSheetRow(token, SHEET_NAMES.users, [
-        regUid, regEmail, firstName, lastName,
+        regUid, regEmail, fullName, "",
         isSuperAdmin ? "superadmin" : "user",
         isSuperAdmin ? "active" : "pending",
         "", now,

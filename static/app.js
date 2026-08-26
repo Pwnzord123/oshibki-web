@@ -154,12 +154,13 @@ async function doLogin() {
 
 async function doRegister() {
     const fn = document.getElementById("r-fn").value.trim();
+    const mn = document.getElementById("r-mn").value.trim();
     const ln = document.getElementById("r-ln").value.trim();
     const email = document.getElementById("r-email").value.trim();
     const pass = document.getElementById("r-pass").value;
     const btn = document.getElementById("r-btn");
     hideErr("r-err");
-    if (!fn || !ln || !email || !pass) {
+    if (!fn || !mn || !ln || !email || !pass) {
         showErr("r-err", "Заполните все поля");
         return;
     }
@@ -177,6 +178,7 @@ async function doRegister() {
                 uid: cred.user.uid,
                 email,
                 firstName: fn,
+                middleName: mn,
                 lastName: ln,
             }),
         });
@@ -194,9 +196,7 @@ function initApp() {
     const nameEl = document.getElementById("user-name");
     const roleEl = document.getElementById("user-role");
     const adminNav = document.getElementById("admin-nav");
-    const fullName = [currentUserProfile.firstName, currentUserProfile.lastName]
-        .filter(Boolean)
-        .join(" ");
+    const fullName = currentUserProfile.firstName || currentUserProfile.email;
     nameEl.textContent = fullName || currentUserProfile.email;
 
     const role = currentUserProfile.role;
@@ -559,7 +559,7 @@ async function loadUsers() {
 }
 
 function userCard(u, status) {
-    const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
+    const fullName = u.firstName || u.email;
     const roleLabel = u.role === "superadmin" ? "Суперадмин" : u.role === "admin" ? "Админ" : "Сотрудник";
     const statusBadge =
         status === "pending"
