@@ -288,7 +288,7 @@ async function findUserByEmail(token, email) {
   return null;
 }
 
-async function getCurrentUser(token, uid) {
+async function getCurrentUser(token, uid, email) {
   const raw = await getSheetValues(token, SHEET_NAMES.users);
   if (!raw.length) return null;
 
@@ -302,6 +302,28 @@ async function getCurrentUser(token, uid) {
       return user;
     }
   }
+
+  if (email) {
+    for (let i = 1; i < raw.length; i++) {
+      if (raw[i][1] && raw[i][1].toLowerCase() === email.toLowerCase()) {
+        const user = {};
+        for (let j = 0; j < USERS_HEADERS.length; j++) {
+          user[USERS_HEADERS[j]] = j < raw[i].length ? String(raw[i][j]).trim() : "";
+        }
+        user.rowIndex = i + 1;
+
+        if (user.uid !== uid) {
+          raw[i][0] = uid;
+          const row = raw[i].slice(0, USERS_HEADERS.length);
+          await updateSheetRow(token, SHEET_NAMES.users, user.rowIndex, row);
+          user.uid = uid;
+        }
+
+        return user;
+      }
+    }
+  }
+
   return null;
 }
 
@@ -342,7 +364,7 @@ export default async function handler(req) {
     }
 
     if (path === "me" && uid) {
-      const user = await getCurrentUser(token, uid);
+      const user = await getCurrentUser(token, uid, email);
       if (!user) return json({ success: false, message: "Пользователь не найден" }, 404);
       return json({ success: true, user });
     }
@@ -373,7 +395,7 @@ export default async function handler(req) {
       const fio = decodeURIComponent(path.slice(7));
 
       if (uid) {
-        const user = await getCurrentUser(token, uid);
+        const user = await getCurrentUser(token, uid, email);
         if (!user || user.status !== "active") {
           return json({ success: false, message: "Доступ запрещён" }, 403);
         }
@@ -435,7 +457,7 @@ export default async function handler(req) {
 
     if (path === "admin/users") {
       if (!uid) return json({ success: false, message: "Не авторизован" }, 401);
-      const user = await getCurrentUser(token, uid);
+      const user = await getCurrentUser(token, uid, email);
       if (!user || !["admin", "superadmin"].includes(user.role) || user.status !== "active") {
         return json({ success: false, message: "Доступ запрещён" }, 403);
       }
@@ -445,7 +467,7 @@ export default async function handler(req) {
 
     if (path === "admin/approve" && req.method === "POST") {
       if (!uid) return json({ success: false, message: "Не авторизован" }, 401);
-      const admin = await getCurrentUser(token, uid);
+      const admin = await getCurrentUser(token, uid, email);
       if (!admin || !["admin", "superadmin"].includes(admin.role) || admin.status !== "active") {
         return json({ success: false, message: "Доступ запрещён" }, 403);
       }
@@ -467,7 +489,7 @@ export default async function handler(req) {
 
     if (path === "admin/reject" && req.method === "POST") {
       if (!uid) return json({ success: false, message: "Не авторизован" }, 401);
-      const admin = await getCurrentUser(token, uid);
+      const admin = await getCurrentUser(token, uid, email);
       if (!admin || !["admin", "superadmin"].includes(admin.role) || admin.status !== "active") {
         return json({ success: false, message: "Доступ запрещён" }, 403);
       }
@@ -489,7 +511,7 @@ export default async function handler(req) {
 
     if (path === "admin/make-admin" && req.method === "POST") {
       if (!uid) return json({ success: false, message: "Не авторизован" }, 401);
-      const admin = await getCurrentUser(token, uid);
+      const admin = await getCurrentUser(token, uid, email);
       if (!admin || admin.role !== "superadmin" || admin.status !== "active") {
         return json({ success: false, message: "Только суперадмин может назначать админов" }, 403);
       }
