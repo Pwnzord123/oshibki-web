@@ -386,13 +386,13 @@ export default async function handler(req) {
         regUid, regEmail, fullName, "",
         isSuperAdmin ? "superadmin" : "user",
         isSuperAdmin ? "active" : "pending",
-        "", now,
+        fullName, now,
       ]);
       return json({ success: true, message: "Заявка отправлена" });
     }
 
     if (path.startsWith("errors/")) {
-      const fio = decodeURIComponent(path.slice(7));
+      let fio = decodeURIComponent(path.slice(7));
 
       if (uid) {
         const user = await getCurrentUser(token, uid, email);
@@ -400,12 +400,11 @@ export default async function handler(req) {
           return json({ success: false, message: "Доступ запрещён" }, 403);
         }
         if (user.role === "user") {
-          if (!user.assignedFio) {
-            return json({ success: false, message: "Вам не назначено ФИО. Обратитесь к администратору." }, 403);
+          const userFio = user.assignedFio || user.firstName;
+          if (!userFio) {
+            return json({ success: false, message: "Ваше ФИО не найдено. Обратитесь к администратору." }, 403);
           }
-          if (fio.toLowerCase() !== user.assignedFio.toLowerCase()) {
-            return json({ success: false, message: "Вы можете просматривать только свои ошибки" }, 403);
-          }
+          fio = userFio;
         }
       }
 

@@ -220,19 +220,43 @@ function initApp() {
     activeView = "errors";
     updateView();
 
-    if (currentUserProfile.role === "user" && currentUserProfile.assignedFio) {
-        const input = document.getElementById("fio-input");
-        if (input) {
-            input.value = currentUserProfile.assignedFio;
-            loadErrors();
+    const isUser = currentUserProfile.role === "user";
+    const controls = document.querySelector(".controls");
+    const userFio = currentUserProfile.assignedFio || currentUserProfile.firstName;
+
+    if (isUser) {
+        controls.style.display = "none";
+        if (userFio) {
+            loadErrorsForFio(userFio);
         }
+    } else {
+        controls.style.display = "";
     }
 
     loadFios();
 }
 
+async function loadErrorsForFio(fio) {
+    document.getElementById("results").classList.add("hidden");
+    document.getElementById("loading").classList.remove("hidden");
+    hideError();
+
+    try {
+        const data = await fetchApi(`/api/errors/${encodeURIComponent(fio)}`);
+        if (!data.success) throw new Error(data.message || "Неизвестная ошибка");
+        currentData = data;
+        renderResults(data);
+        document.getElementById("results").classList.remove("hidden");
+    } catch (e) {
+        showError("Ошибка загрузки: " + e.message);
+    } finally {
+        document.getElementById("loading").classList.add("hidden");
+    }
+}
+
 function updateView() {
     const isAdmin = ["admin", "superadmin"].includes(currentUserProfile.role);
+    const isUser = currentUserProfile.role === "user";
     const adminPanel = document.getElementById("admin-panel");
     const controls = document.querySelector(".controls");
     const results = document.getElementById("results");
@@ -244,6 +268,9 @@ function updateView() {
         if (results) results.classList.add("hidden");
         if (loading) loading.classList.add("hidden");
         loadUsers();
+    } else if (isUser) {
+        adminPanel.classList.add("hidden");
+        controls.style.display = "none";
     } else {
         adminPanel.classList.add("hidden");
         controls.style.display = "";
