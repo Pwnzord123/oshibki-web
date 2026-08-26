@@ -530,6 +530,66 @@ export default async function handler(req) {
       return json({ success: true, message: "Пользователь назначен админом" });
     }
 
+    if (path === "admin/update-user" && req.method === "POST") {
+      if (!uid) return json({ success: false, message: "Не авторизован" }, 401);
+      const admin = await getCurrentUser(token, uid, email);
+      if (!admin || !["admin", "superadmin"].includes(admin.role) || admin.status !== "active") {
+        return json({ success: false, message: "Доступ запрещён" }, 403);
+      }
+      const body = await req.json();
+      const { targetUid, newFio, newRole } = body;
+      if (!targetUid) return json({ success: false, message: "targetUid обязателен" }, 400);
+      const targetRowIndex = await findUserRowIndex(token, targetUid);
+      if (targetRowIndex === -1) return json({ success: false, message: "Пользователь не найден" }, 404);
+
+      if (newRole && !["user", "admin", "superadmin"].includes(newRole)) {
+        return json({ success: false, message: "Недопустимая роль" }, 400);
+      }
+      if (newRole === "superadmin" && admin.role !== "superadmin") {
+        return json({ success: false, message: "Только суперадмин может назначать суперадминов" }, 403);
+      }
+
+      const raw = await getSheetValues(token, SHEET_NAMES.users);
+      const targetRow = raw[targetRowIndex - 1];
+      const row = [
+        targetRow[0], targetRow[1],
+        newFio !== undefined ? newFio : targetRow[2],
+        targetRow[3],
+        newRole || targetRow[4],
+        targetRow[5],
+        newFio !== undefined ? newFio : (targetRow[6] || ""),
+        targetRow[7] || new Date().toISOString(),
+      ];
+      await updateSheetRow(token, SHEET_NAMES.users, targetRowIndex, row);
+      return json({ success: true, message: "Пользователь обновлён" });
+    }
+
+    if (path === "me/update" && req.method === "POST") {
+      if (!uid) return json({ success: false, message: "Не авторизован" }, 401);
+      const user = await getCurrentUser(token, uid, email);
+      if (!user || user.status !== "active") {
+        return json({ success: false, message: "Доступ запрещён" }, 403);
+      }
+      const body = await req.json();
+      const { newFio } = body;
+      if (!newFio || !newFio.trim()) {
+        return json({ success: false, message: "ФИО обязательно" }, 400);
+      }
+
+      const raw = await getSheetValues(token, SHEET_NAMES.users);
+      const row = raw[user.rowIndex - 1];
+      const updatedRow = [
+        row[0], row[1],
+        newFio.trim(),
+        row[3],
+        row[4], row[5],
+        newFio.trim(),
+        row[7] || new Date().toISOString(),
+      ];
+      await updateSheetRow(token, SHEET_NAMES.users, user.rowIndex, updatedRow);
+      return json({ success: true, message: "ФИО обновлено" });
+    }
+
     return json({ error: "Not found" }, 404);
   } catch (e) {
     return json({ error: e.message }, 500);

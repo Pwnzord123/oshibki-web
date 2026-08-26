@@ -583,6 +583,12 @@ async function loadUsers() {
         list.querySelectorAll("[data-makeadmin]").forEach((btn) => {
             btn.onclick = () => makeAdmin(btn.dataset.makeadmin);
         });
+        list.querySelectorAll("[data-edit]").forEach((btn) => {
+            btn.onclick = () => {
+                const data = JSON.parse(btn.dataset.edit);
+                showEditModal(data.uid, data.firstName, data.role);
+            };
+        });
     } catch (e) {
         list.innerHTML = `<div class="error-box">Ошибка загрузки: ${escHtml(e.message)}</div>`;
     }
@@ -599,19 +605,25 @@ function userCard(u, status) {
             : '<span class="status-badge status-rejected">Отклонён</span>';
 
     const isSuperadmin = currentUserProfile.role === "superadmin";
+    const isAdmin = ["admin", "superadmin"].includes(currentUserProfile.role);
 
     return `
         <div class="user-card">
             <div class="user-card-info">
                 <div class="user-card-name">${escHtml(fullName)} ${statusBadge}</div>
                 <div class="user-card-meta">${escHtml(u.email)} · ${roleLabel}</div>
-                ${u.assignedFio ? `<div class="user-card-fio">ФИО: ${escHtml(u.assignedFio)}</div>` : ""}
+                ${u.assignedFio ? `<div class="user-card-fio">ФИО для поиска: ${escHtml(u.assignedFio)}</div>` : ""}
             </div>
             <div class="user-card-actions">
                 ${
                     status === "pending"
                         ? `<button class="btn btn-sm btn-approve" data-approve="${escAttr(u.uid)}">Одобрить</button>
                            <button class="btn btn-sm btn-reject-card" data-reject="${escAttr(u.uid)}">Отклонить</button>`
+                        : ""
+                }
+                ${
+                    status === "active" && isAdmin
+                        ? `<button class="btn btn-sm btn-edit" data-edit='${escAttr(JSON.stringify({uid:u.uid, firstName:u.firstName, role:u.role}))}'>Изменить</button>`
                         : ""
                 }
                 ${
@@ -681,3 +693,96 @@ window.showView = function (view) {
     });
     updateView();
 };
+
+function showEditModal(targetUid, currentName, currentRole) {
+    const existing = document.getElementById("modal-overlay");
+    if (existing) existing.remove();
+
+    const isSuperadmin = currentUserProfile.role === "superadmin";
+    const roleOptions = isSuperadmin
+        ? `<option value="user" ${currentRole==="user"?"selected":""}>Сотрудник</option>
+           <option value="admin" ${currentRole==="admin"?"selected":""}>Админ</option>
+           <option value="superadmin" ${currentRole==="superadmin"?"selected":""}>Суперадмин</option>`
+        : `<option value="user" ${currentRole==="user"?"selected":""}>Сотрудник</option>
+           <option value="admin" ${currentRole==="admin"?"selected":""}>Админ</option>`;
+
+    const ov = document.createElement("div");
+    ov.id = "modal-overlay";
+    ov.className = "modal-overlay";
+    ov.innerHTML = `
+        <div class="modal-sheet">
+            <div class="modal-handle"></div>
+            <h3 style="font-size:1rem;font-weight:700;margin:0 0 16px;color:#fff">Редактировать пользователя</h3>
+            <div class="field"><label>ФИО</label><input id="modal-fio" type="text" value="${escAttr(currentName || "")}" placeholder="Имя Отчество Фамилия"></div>
+            <div class="field"><label>Роль</label><select id="modal-role">${roleOptions}</select></div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+                <button id="modal-save" class="btn btn-accent" style="flex:1">Сохранить</button>
+                <button id="modal-cancel" class="btn btn-ghost" style="flex:1">Отмена</button>
+            </div>
+        </div>`;
+    ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
+
+    document.getElementById("modal-cancel").onclick = () => ov.remove();
+    document.getElementById("modal-save").onclick = async () => {
+        const newFio = document.getElementById("modal-fio").value.trim();
+        const newRole = document.getElementById("modal-role").value;
+        if (!newFio) { alert("Введите ФИО"); return; }
+        try {
+            const data = await fetchApi("/api/admin/update-user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ targetUid, newFio, newRole }),
+            });
+            if (!data.success) throw new Error(data.message);
+            ov.remove();
+            loadUsers();
+        } catch (e) {
+            alert("Ошибка: " + e.message);
+        }
+    };
+}
+
+function showRenameModal() {
+    const existing = document.getElementById("modal-overlay");
+    if (existing) existing.remove();
+
+    const currentName = currentUserProfile.firstName || "";
+    const ov = document.createElement("div");
+    ov.id = "modal-overlay";
+    ov.className = "modal-overlay";
+    ov.innerHTML = `
+        <div class="modal-sheet">
+            <div class="modal-handle"></div>
+            <h3 style="font-size:1rem;font-weight:700;margin:0 0 6px;color:#fff">Изменить ФИО</h3>
+            <p style="color:#666;font-size:0.8rem;margin:0 0 16px">ФИО используется для поиска ошибок в таблице</p>
+            <div class="field"><label>ФИО</label><input id="modal-fio" type="text" value="${escAttr(currentName)}" placeholder="Имя Отчество Фамилия"></div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+                <button id="modal-save" class="btn btn-accent" style="flex:1">Сохранить</button>
+                <button id="modal-cancel" class="btn btn-ghost" style="flex:1">Отмена</button>
+            </div>
+        </div>`;
+    ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
+
+    document.getElementById("modal-cancel").onclick = () => ov.remove();
+    document.getElementById("modal-save").onclick = async () => {
+        const newFio = document.getElementById("modal-fio").value.trim();
+        if (!newFio) { alert("Введите ФИО"); return; }
+        try {
+            const data = await fetchApi("/api/me/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ newFio }),
+            });
+            if (!data.success) throw new Error(data.message);
+            currentUserProfile.firstName = newFio;
+            currentUserProfile.assignedFio = newFio;
+            document.getElementById("user-name").textContent = newFio;
+            ov.remove();
+            loadErrorsForFio(newFio);
+        } catch (e) {
+            alert("Ошибка: " + e.message);
+        }
+    };
+}

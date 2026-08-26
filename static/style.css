@@ -171,6 +171,15 @@ button:active {
     background: #4f46e5;
 }
 
+.btn-edit {
+    background: #6366f1;
+    color: #fff;
+}
+
+.btn-edit:hover {
+    background: #4f46e5;
+}
+
 /* ── APP HEADER ── */
 .app-header {
     background: #111;
@@ -629,6 +638,45 @@ button:active {
 .status-rejected {
     background: rgba(148,163,184,0.12);
     color: #8896ab;
+}
+
+/* ── MODAL ── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 500;
+}
+
+.modal-sheet {
+    background: #111;
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 480px;
+    padding: 20px 20px 32px;
+}
+
+.modal-handle {
+    width: 36px;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    margin: 0 auto 16px;
+}
+
+.modal-sheet select {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 10px;
+    color: #fff;
+    outline: none;
+    appearance: auto;
 }
 
 /* ── SCROLLBAR ── */
