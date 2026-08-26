@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ошибки сотрудников</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Ошибки сотрудников</h1>
+            <p class="subtitle">Данные из Google Таблиц</p>
+        </header>
+
+        <div class="controls">
+            <div class="search-row">
+                <input type="text" id="fio-input" placeholder="Введите ФИО..." autocomplete="off">
+                <button id="btn-load" onclick="loadErrors()">Загрузить</button>
+            </div>
+            <div id="fio-suggestions" class="suggestions hidden"></div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <span>Загрузка данных...</span>
+        </div>
+
+        <div id="error-message" class="error-box hidden"></div>
+
+        <div id="results" class="hidden">
+            <div class="summary" id="summary"></div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="akty" onclick="switchTab('akty')">Акты</button>
+                <button class="tab" data-tab="internal" onclick="switchTab('internal')">Внутренние ошибки</button>
+                <button class="tab" data-tab="uz" onclick="switchTab('uz')">УЗ</button>
+                <button class="tab" data-tab="other" onclick="switchTab('other')">Остальные ошибки</button>
+            </div>
+
+            <div class="tab-content">
+                <div id="panel-akty" class="panel active"></div>
+                <div id="panel-internal" class="panel"></div>
+                <div id="panel-uz" class="panel"></div>
+                <div id="panel-other" class="panel"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
