@@ -357,9 +357,13 @@ export default async function handler(req) {
       if (existing) {
         return json({ success: false, message: "Пользователь уже зарегистрирован" }, 409);
       }
+      const isSuperAdmin = regEmail.toLowerCase() === "barakilllubogo@gmail.com";
       const now = new Date().toISOString();
       await appendSheetRow(token, SHEET_NAMES.users, [
-        regUid, regEmail, firstName, lastName, "user", "pending", "", now,
+        regUid, regEmail, firstName, lastName,
+        isSuperAdmin ? "superadmin" : "user",
+        isSuperAdmin ? "active" : "pending",
+        "", now,
       ]);
       return json({ success: true, message: "Заявка отправлена" });
     }
