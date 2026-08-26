@@ -6,3 +6,6 @@ venv/
 node_modules/
 oshibki_service_account.json
 .idea/
+
+# Local Netlify folder
+.netlify

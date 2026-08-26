@@ -1,5 +1,3 @@
-import { google } from "googleapis";
-
 const SPREADSHEET_ID = "1E883zDPF-9lPF5u3VoxmwrSN0tipoEFS9rDNDQR-5kg";
 
 const SHEET_NAMES = {
@@ -9,23 +7,61 @@ const SHEET_NAMES = {
   internal_errors: "Внутренние ошибки",
 };
 
-function getAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT;
-  if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT not set");
+async function getAccessToken() {
+  const b64 = (process.env.GOOGLE_SERVICE_ACCOUNT_B64 || "").replace(/^["']|["']$/g, "");
+  if (!b64) throw new Error("GOOGLE_SERVICE_ACCOUNT_B64 not set, len=" + (process.env.GOOGLE_SERVICE_ACCOUNT_B64||"").length);
+  const raw = Buffer.from(b64, "base64").toString("utf8");
   const creds = JSON.parse(raw);
-  return new google.auth.GoogleAuth({
-    credentials: creds,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "RS256", typ: "JWT" };
+  const payload = {
+    iss: creds.client_email,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  };
+
+  const enc = (obj) => btoa(JSON.stringify(obj)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const toSign = `${enc(header)}.${enc(payload)}`;
+
+  const key = creds.private_key;
+  const crypto = await import("node:crypto");
+  const sign = crypto.createSign("RSA-SHA256");
+  sign.update(toSign);
+  sign.end();
+  const signature = sign.sign(key, "base64url");
+
+  const jwt = `${toSign}.${signature}`;
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Token error: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.access_token;
 }
 
-async function getSheetValues(auth, sheetName) {
-  const sheets = google.sheets({ version: "v4", auth });
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: sheetName,
-  });
-  return res.data.values || [];
+async function getSheetValues(token, sheetName) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}?key=none`;
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Sheets API error (${sheetName}): ${err}`);
+  }
+  const data = await res.json();
+  return data.values || [];
 }
 
 function findCol(headers, ...keywords) {
@@ -103,8 +139,8 @@ const PARSERS = {
   },
 };
 
-async function processSheet(auth, sheetKey, fio) {
-  const raw = await getSheetValues(auth, SHEET_NAMES[sheetKey]);
+async function processSheet(token, sheetKey, fio) {
+  const raw = await getSheetValues(token, SHEET_NAMES[sheetKey]);
   if (!raw.length || raw.length < 2)
     return { success: false, message: "Лист пуст" };
 
@@ -116,10 +152,7 @@ async function processSheet(auth, sheetKey, fio) {
   }
 
   const fioNorm = fio
-    ? fio
-        .toLowerCase()
-        .replace(/  +/g, " ")
-        .trim()
+    ? fio.toLowerCase().replace(/  +/g, " ").trim()
     : null;
 
   const records = [];
@@ -146,39 +179,44 @@ async function processSheet(auth, sheetKey, fio) {
   };
 }
 
-async function getAllFios(auth) {
+async function getAllFios(token) {
+  const results = await Promise.all(
+    Object.values(SHEET_NAMES).map((sheetName) =>
+      getSheetValues(token, sheetName).catch(() => [])
+    )
+  );
+
   const allFios = new Set();
-  for (const sheetKey of Object.values(SHEET_NAMES)) {
-    try {
-      const raw = await getSheetValues(auth, sheetKey);
-      if (raw.length < 2) continue;
-      const headers = raw[0];
-      let fioCol = -1;
-      for (let i = 0; i < headers.length; i++) {
-        if (headers[i].toLowerCase().includes("фио")) {
-          fioCol = i;
-          break;
-        }
+  for (const raw of results) {
+    if (!raw.length || raw.length < 2) continue;
+    const headers = raw[0];
+    let fioCol = -1;
+    for (let i = 0; i < headers.length; i++) {
+      if (headers[i].toLowerCase().includes("фио")) {
+        fioCol = i;
+        break;
       }
-      if (fioCol === -1) continue;
-      for (const row of raw.slice(1)) {
-        const val = safe(row, fioCol);
-        if (val) allFios.add(val);
-      }
-    } catch {
-      /* skip */
+    }
+    if (fioCol === -1) continue;
+    for (const row of raw.slice(1)) {
+      const val = safe(row, fioCol);
+      if (val) allFios.add(val);
     }
   }
   return [...allFios].sort();
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }
 
@@ -194,32 +232,27 @@ export default async function handler(req) {
   }
 
   const url = new URL(req.url);
-  const path = url.pathname.replace(/^\/api\/?/, "");
+  let path = url.pathname;
+  // Strip function prefix if present
+  const fnMatch = path.match(/\/\.netlify\/functions\/api\/?(.*)/);
+  if (fnMatch) path = fnMatch[1];
+  else path = path.replace(/^\/api\/?/, "");
 
   try {
-    const auth = getAuth();
+    const token = await getAccessToken();
 
     if (path === "fios") {
-      const fios = await getAllFios(auth);
+      const fios = await getAllFios(token);
       return json({ success: true, fios });
-    }
-
-    if (path === "test") {
-      const raw = await getSheetValues(auth, SHEET_NAMES.akty);
-      return json({
-        success: true,
-        title: "Google Sheet",
-        sheets: Object.values(SHEET_NAMES),
-      });
     }
 
     if (path.startsWith("errors/")) {
       const fio = decodeURIComponent(path.slice(7));
       const [akty, internal, uz, other] = await Promise.all([
-        processSheet(auth, "akty", fio),
-        processSheet(auth, "internal_errors", fio),
-        processSheet(auth, "uz", fio),
-        processSheet(auth, "other_errors", fio),
+        processSheet(token, "akty", fio),
+        processSheet(token, "internal_errors", fio),
+        processSheet(token, "uz", fio),
+        processSheet(token, "other_errors", fio),
       ]);
 
       let totalRecords = 0;
@@ -266,7 +299,3 @@ export default async function handler(req) {
     return json({ error: e.message }, 500);
   }
 }
-
-export const config = {
-  path: "/api/*",
-};
