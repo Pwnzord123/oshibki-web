@@ -5,44 +5,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ошибки сотрудников</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Ошибки сотрудников</h1>
-            <p class="subtitle">Данные из Google Таблиц</p>
-        </header>
-
-        <div class="controls">
-            <div class="search-row">
-                <input type="text" id="fio-input" placeholder="Введите ФИО..." autocomplete="off">
-                <button id="btn-load" onclick="loadErrors()">Загрузить</button>
+    <div id="app-root">
+        <div id="screen-loading" class="auth-wrap">
+            <div class="auth-card" style="text-align:center">
+                <div class="spinner" style="margin:0 auto 16px"></div>
+                <p style="color:#666;font-size:13px">Загрузка...</p>
             </div>
-            <div id="fio-suggestions" class="suggestions hidden"></div>
         </div>
 
-        <div id="loading" class="loading hidden">
-            <div class="spinner"></div>
-            <span>Загрузка данных...</span>
+        <div id="screen-login" class="auth-wrap hidden">
+            <div class="auth-card">
+                <div class="auth-logo">📋</div>
+                <h1 style="text-align:center;font-size:1.4rem;font-weight:800;margin:0 0 4px">Ошибки сотрудников</h1>
+                <p style="text-align:center;color:#666;font-size:0.85rem;margin:0 0 24px">Авторизация</p>
+                <div class="field"><label>Email</label><input id="l-email" type="email" placeholder="email@company.com" autocomplete="email"></div>
+                <div class="field"><label>Пароль</label><input id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+                <p id="l-err" style="color:#f87171;font-size:0.8rem;margin:0 0 12px;display:none"></p>
+                <button id="l-btn" class="btn btn-accent">Войти</button>
+                <p style="text-align:center;color:#666;font-size:0.85rem;margin-top:16px">
+                    Нет аккаунта? <a id="to-register" href="#" style="color:#dc2626;text-decoration:none">Подать заявку</a>
+                </p>
+            </div>
         </div>
 
-        <div id="error-message" class="error-box hidden"></div>
+        <div id="screen-register" class="auth-wrap hidden">
+            <div class="auth-card">
+                <div class="auth-logo">📝</div>
+                <h1 style="text-align:center;font-size:1.2rem;font-weight:800;margin:0 0 4px">Регистрация</h1>
+                <p style="text-align:center;color:#666;font-size:0.8rem;margin:0 0 22px">Заявка будет проверена администратором</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                    <div class="field" style="margin:0"><label>Имя</label><input id="r-fn" type="text" placeholder="Иван" autocomplete="given-name"></div>
+                    <div class="field" style="margin:0"><label>Фамилия</label><input id="r-ln" type="text" placeholder="Иванов" autocomplete="family-name"></div>
+                </div>
+                <div class="field"><label>Email</label><input id="r-email" type="email" placeholder="email@company.com" autocomplete="email"></div>
+                <div class="field"><label>Пароль (мин. 6 символов)</label><input id="r-pass" type="password" placeholder="••••••••" autocomplete="new-password"></div>
+                <p id="r-err" style="color:#f87171;font-size:0.8rem;margin:0 0 12px;display:none"></p>
+                <button id="r-btn" class="btn btn-accent">Отправить заявку</button>
+                <p style="text-align:center;color:#666;font-size:0.85rem;margin-top:14px">
+                    <a id="to-login" href="#" style="color:#dc2626;text-decoration:none">← Назад ко входу</a>
+                </p>
+            </div>
+        </div>
 
-        <div id="results" class="hidden">
-            <div class="summary" id="summary"></div>
+        <div id="screen-pending" class="auth-wrap hidden">
+            <div class="auth-card" style="text-align:center">
+                <div style="font-size:48px;margin-bottom:16px">⏳</div>
+                <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 10px">Заявка на рассмотрении</h2>
+                <p style="color:#666;font-size:0.9rem;line-height:1.6;margin:0 0 20px">
+                    Ваша заявка отправлена администратору.<br>Вы получите доступ после подтверждения.
+                </p>
+                <button class="btn btn-ghost" onclick="firebase.auth().signOut()">Выйти</button>
+            </div>
+        </div>
 
-            <div class="tabs">
-                <button class="tab active" data-tab="akty" onclick="switchTab('akty')">Акты</button>
-                <button class="tab" data-tab="internal" onclick="switchTab('internal')">Внутренние ошибки</button>
-                <button class="tab" data-tab="uz" onclick="switchTab('uz')">УЗ</button>
-                <button class="tab" data-tab="other" onclick="switchTab('other')">Остальные ошибки</button>
+        <div id="screen-rejected" class="auth-wrap hidden">
+            <div class="auth-card" style="text-align:center">
+                <div style="font-size:48px;margin-bottom:16px">❌</div>
+                <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 10px">Доступ отклонён</h2>
+                <p style="color:#666;font-size:0.9rem;line-height:1.6;margin:0 0 20px">
+                    Ваша заявка была отклонена.<br>Обратитесь к администратору.
+                </p>
+                <button class="btn btn-ghost" onclick="firebase.auth().signOut()">Выйти</button>
+            </div>
+        </div>
+
+        <div id="screen-app" class="hidden">
+            <div class="app-header">
+                <h1 class="app-title">Ошибки <span>сотрудников</span></h1>
+                <div class="admin-nav hidden" id="admin-nav">
+                    <button class="admin-tab active" data-view="errors" onclick="showView('errors')">Ошибки</button>
+                    <button class="admin-tab" data-view="users" onclick="showView('users')">Пользователи</button>
+                </div>
+                <div class="header-right">
+                    <span id="user-name" style="color:#999;font-size:0.8rem"></span>
+                    <span id="user-role" class="role-badge"></span>
+                    <button id="logout-btn" class="btn btn-ghost-sm">Выйти</button>
+                </div>
             </div>
 
-            <div class="tab-content">
-                <div id="panel-akty" class="panel active"></div>
-                <div id="panel-internal" class="panel"></div>
-                <div id="panel-uz" class="panel"></div>
-                <div id="panel-other" class="panel"></div>
+            <div class="container">
+                <div class="controls">
+                    <div class="search-row">
+                        <input type="text" id="fio-input" placeholder="Введите ФИО..." autocomplete="off">
+                        <button id="btn-load" onclick="loadErrors()">Загрузить</button>
+                    </div>
+                    <div id="fio-suggestions" class="suggestions hidden"></div>
+                </div>
+
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <span>Загрузка данных...</span>
+                </div>
+
+                <div id="error-message" class="error-box hidden"></div>
+
+                <div id="results" class="hidden">
+                    <div class="summary" id="summary"></div>
+
+                    <div class="tabs">
+                        <button class="tab active" data-tab="akty" onclick="switchTab('akty')">Акты</button>
+                        <button class="tab" data-tab="internal" onclick="switchTab('internal')">Внутренние ошибки</button>
+                        <button class="tab" data-tab="uz" onclick="switchTab('uz')">УЗ</button>
+                        <button class="tab" data-tab="other" onclick="switchTab('other')">Остальные ошибки</button>
+                    </div>
+
+                    <div class="tab-content">
+                        <div id="panel-akty" class="panel active"></div>
+                        <div id="panel-internal" class="panel"></div>
+                        <div id="panel-uz" class="panel"></div>
+                        <div id="panel-other" class="panel"></div>
+                    </div>
+                </div>
+
+                <div id="admin-panel" class="hidden">
+                    <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 16px;color:#fff">Управление пользователями</h2>
+                    <div id="users-list"></div>
+                </div>
             </div>
         </div>
     </div>
