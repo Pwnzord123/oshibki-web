@@ -69,7 +69,10 @@ auth.onAuthStateChanged(async (user) => {
     showScreen("loading");
 
     try {
-        const data = await fetchApi("/api/me");
+        const meRes = await fetch("/api/me", {
+            headers: { "X-User-Uid": user.uid, "X-User-Email": user.email || "" },
+        });
+        const data = await meRes.json();
         if (data.success && data.user) {
             currentUserProfile = { ...data.user, uid: user.uid, email: user.email };
         } else {
