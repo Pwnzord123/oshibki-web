@@ -9,3 +9,13 @@ oshibki_service_account.json
 
 # Local Netlify folder
 .netlify
+
+# Firebase
+functions/node_modules/
+.firebase/
+firebase-debug.log
+
+# Cloudflare
+functions/.env
+.dev.vars
+.wrangler/

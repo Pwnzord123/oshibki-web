@@ -1,10 +1,10 @@
 const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyB7H82A-fw8uMRRdu71bqBTawEKRiIWlA8",
-    authDomain: "check-list-5d9f9.firebaseapp.com",
-    projectId: "check-list-5d9f9",
-    storageBucket: "check-list-5d9f9.firebasestorage.app",
-    messagingSenderId: "191294120106",
-    appId: "1:191294120106:web:3033138b2b2484c50730d3",
+    apiKey: "AIzaSyBT4PBfMC5xBNJAogTU8VxZYTpz2-DDK2Q",
+    authDomain: "oshibki-errors-cdeec.firebaseapp.com",
+    projectId: "oshibki-errors-cdeec",
+    storageBucket: "oshibki-errors-cdeec.firebasestorage.app",
+    messagingSenderId: "620925948714",
+    appId: "1:620925948714:web:5756f6cb685fa9dd23c453",
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
