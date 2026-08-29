@@ -10,20 +10,33 @@ const SHEET_NAMES = {
 
 const USERS_HEADERS = ["uid", "email", "firstName", "lastName", "role", "status", "assignedFio", "createdAt"];
 
+// Module-scope caches — survive across warm (reused) function invocations.
+const TOKEN_TTL_MS = 55 * 60 * 1000; // Google tokens are valid 60min; refresh a bit early
+const SHEET_TTL_MS = 45 * 1000; // sheet data can be this stale before we re-fetch
+
+let cachedToken = null;
+let cachedTokenExpiry = 0;
+const sheetCache = new Map(); // sheetName -> { values, expiry }
+
 async function getAccessToken() {
+  const now = Date.now();
+  if (cachedToken && now < cachedTokenExpiry) {
+    return cachedToken;
+  }
+
   const b64 = (process.env.GOOGLE_SERVICE_ACCOUNT_B64 || "").replace(/^["']|["']$/g, "");
   if (!b64) throw new Error("GOOGLE_SERVICE_ACCOUNT_B64 not set");
   const raw = Buffer.from(b64, "base64").toString("utf8");
   const creds = JSON.parse(raw);
 
-  const now = Math.floor(Date.now() / 1000);
+  const nowSec = Math.floor(now / 1000);
   const header = { alg: "RS256", typ: "JWT" };
   const payload = {
     iss: creds.client_email,
     scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600,
+    iat: nowSec,
+    exp: nowSec + 3600,
   };
 
   const enc = (obj) => btoa(JSON.stringify(obj)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -50,10 +63,18 @@ async function getAccessToken() {
   }
 
   const data = await res.json();
-  return data.access_token;
+  cachedToken = data.access_token;
+  cachedTokenExpiry = now + TOKEN_TTL_MS;
+  return cachedToken;
 }
 
 async function getSheetValues(token, sheetName) {
+  const now = Date.now();
+  const cached = sheetCache.get(sheetName);
+  if (cached && now < cached.expiry) {
+    return cached.values;
+  }
+
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}`,
     { headers: { Authorization: `Bearer ${token}` } }
@@ -63,7 +84,13 @@ async function getSheetValues(token, sheetName) {
     throw new Error(`Sheets API error (${sheetName}): ${err}`);
   }
   const data = await res.json();
-  return data.values || [];
+  const values = data.values || [];
+  sheetCache.set(sheetName, { values, expiry: now + SHEET_TTL_MS });
+  return values;
+}
+
+function invalidateSheetCache(sheetName) {
+  sheetCache.delete(sheetName);
 }
 
 async function appendSheetRow(token, sheetName, values) {
@@ -79,6 +106,7 @@ async function appendSheetRow(token, sheetName, values) {
     const err = await res.text();
     throw new Error(`Sheets append error (${sheetName}): ${err}`);
   }
+  invalidateSheetCache(sheetName);
   return res.json();
 }
 
@@ -96,6 +124,7 @@ async function updateSheetRow(token, sheetName, rowIndex, values) {
     const err = await res.text();
     throw new Error(`Sheets update error (${sheetName}): ${err}`);
   }
+  invalidateSheetCache(sheetName);
   return res.json();
 }
 
