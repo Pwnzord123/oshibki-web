@@ -637,17 +637,12 @@ function userCard(u, status) {
 }
 
 async function approveUser(targetUid) {
-    const fio = prompt("Введите ФИО сотрудника из таблицы (точное совпадение):");
-    if (fio === null) return;
-    if (!fio.trim()) {
-        alert("ФИО обязательно для одобрения");
-        return;
-    }
+    if (!confirm("Одобрить заявку?")) return;
     try {
         const data = await fetchApi("/api/admin/approve", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ targetUid, assignedFio: fio.trim() }),
+            body: JSON.stringify({ targetUid }),
         });
         if (!data.success) throw new Error(data.message);
         loadUsers();
