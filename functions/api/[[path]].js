@@ -420,7 +420,7 @@ export async function onRequest(context) {
         return json({ success: false, message: "Пользователь уже зарегистрирован" }, 409);
       }
       const isSuperAdmin = regEmail.toLowerCase() === "barakilllubogo@gmail.com";
-      const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
+      const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ");
       const now = new Date().toISOString();
       await appendSheetRow(token, SHEET_NAMES.users, [
         regUid, regEmail, fullName, "",
